@@ -126,8 +126,9 @@ def _katie_collect_figures():
     hooks.onStatus("Loading Python runtime…", "busy");
     await loadScript("https://cdn.jsdelivr.net/pyodide/v0.27.2/full/pyodide.js");
     pyodide = await loadPyodide();
-    pyodide.setStdout({ batched: (s) => hooks.onText(s, "out") });
-    pyodide.setStderr({ batched: (s) => hooks.onText(s, "err") });
+    const dec = new TextDecoder();
+    pyodide.setStdout({ write: (b) => { hooks.onText(dec.decode(b), "out"); return b.length; } });
+    pyodide.setStderr({ write: (b) => { hooks.onText(dec.decode(b), "err"); return b.length; } });
     await pyodide.runPythonAsync(INLINE_BOOT);
     ready = true;
     hooks.onStatus("Ready", "ok");

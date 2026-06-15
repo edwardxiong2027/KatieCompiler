@@ -49,8 +49,10 @@ async function boot() {
   importScripts("https://cdn.jsdelivr.net/pyodide/v0.27.2/full/pyodide.js");
   post("status", { text: "Loading Python runtime…", kind: "busy" });
   pyodide = await loadPyodide();
-  pyodide.setStdout({ batched: (s) => post("stdout", { text: s }) });
-  pyodide.setStderr({ batched: (s) => post("stderr", { text: s }) });
+  // Unbuffered write handlers (not "batched") so a prompt with no trailing
+  // newline — like input("Name? ") — shows immediately, before we read stdin.
+  pyodide.setStdout({ write: (buf) => { post("stdout", { text: decoder.decode(buf) }); return buf.length; } });
+  pyodide.setStderr({ write: (buf) => { post("stderr", { text: decoder.decode(buf) }); return buf.length; } });
   pyodide.setStdin({ stdin: blockingStdin, isatty: true });
   await pyodide.runPythonAsync(BOOT_PY);
   post("status", { text: "Ready", kind: "ok" });

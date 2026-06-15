@@ -195,7 +195,7 @@ body {
   color: var(--text);
 }
 .output .err { color: var(--error); }
-.output .echo { color: var(--text); font-weight: 600; }
+.output .echo { color: var(--accent); }
 .output .figure {
   display: block;
   max-width: 100%;

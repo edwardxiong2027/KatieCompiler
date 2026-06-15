@@ -7,7 +7,8 @@ Python runs through [Pyodide](https://pyodide.org), which is real CPython compil
 ## Features
 
 - A modern, minimalist editor with Python syntax highlighting and autocompletion
-- Runs in the browser — print output, errors, `input()` prompts, and matplotlib graphs all appear inline
+- Runs in the browser — print output, errors, and matplotlib graphs all appear inline
+- An interactive console: `input()` lets you type directly on the console line, like a real terminal
 - Light and dark themes, adjustable font size, a draggable split between code and output
 - Your code is auto-saved in the browser between visits
 - Optional GitHub sync: open and commit `.py` files in a repository of your choice
@@ -52,13 +53,19 @@ The token is stored only in your browser's local storage. Anyone with access to 
 
 The two external libraries are pinned in `index.html`: the Ace editor (cdnjs) and Pyodide (`v0.27.2` on jsDelivr). To move to a newer Python runtime, change the Pyodide version in that one URL.
 
+## How interactive input works
+
+So `input()` can pause the program and wait for you to type, Python runs in a Web Worker and blocks on a `SharedArrayBuffer` until the console hands it the line you typed. `SharedArrayBuffer` requires the page to be "cross-origin isolated", which GitHub Pages can't enable through HTTP headers — so `coi-serviceworker.js` registers a tiny service worker that supplies the needed headers. The first time you open the site it reloads itself once to turn this on; after that it's instant. If the service worker can't run (for example in a private window with workers blocked), the app falls back to a `window.prompt` dialog so it still works.
+
 ## Project layout
 
 ```
-index.html     structure and CDN includes
-styles.css     all styling (light/dark via CSS variables)
-runner.js      Pyodide: run code, capture stdout/stderr, render plots, input()
-github.js      read & write files via the GitHub REST API
-examples.js    starter programs for the Examples menu
-app.js         wires the editor, runner, GitHub sync and UI together
+index.html            structure and CDN includes
+styles.css            all styling (light/dark via CSS variables)
+worker.js             Pyodide runs here: execute code, stdout/stderr, plots, blocking stdin
+runner.js             main-thread side: manages the worker + shared-memory input (prompt fallback)
+coi-serviceworker.js  enables cross-origin isolation so SharedArrayBuffer works on Pages
+github.js             read & write files via the GitHub REST API
+examples.js           starter programs for the Examples menu
+app.js                wires the editor, runner, console input, GitHub sync and UI together
 ```

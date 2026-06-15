@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Katie · Python Playground</title>
+  <meta name="description" content="A clean, ad-free Python playground that runs entirely in your browser." />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐍</text></svg>" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo">🐍</span>
+      <span class="brand-name">Katie</span>
+      <span class="brand-sub">Python Playground</span>
+    </div>
+
+    <div class="file-area">
+      <input id="filename" class="filename" value="main.py" spellcheck="false" aria-label="File name" />
+      <select id="examples" class="examples" aria-label="Load an example">
+        <option value="" disabled selected>Examples…</option>
+        <option value="hello">Hello, world</option>
+        <option value="fib">Fibonacci</option>
+        <option value="numpy">NumPy array math</option>
+        <option value="plot">Plot a sine wave</option>
+        <option value="bars">Bar chart</option>
+        <option value="input">Ask for input</option>
+      </select>
+    </div>
+
+    <div class="actions">
+      <button id="run" class="btn btn-primary" title="Run (Ctrl/Cmd + Enter)">▶ Run</button>
+      <button id="clear" class="btn" title="Clear output">Clear</button>
+      <button id="github" class="btn" title="Sync with GitHub">GitHub</button>
+      <button id="settings-btn" class="btn icon" title="Settings" aria-label="Settings">⚙</button>
+      <button id="theme" class="btn icon" title="Toggle light / dark" aria-label="Toggle theme">◐</button>
+    </div>
+  </header>
+
+  <main class="workspace">
+    <section class="pane editor-pane">
+      <div id="editor"></div>
+    </section>
+
+    <div class="splitter" id="splitter" role="separator" aria-orientation="vertical"></div>
+
+    <section class="pane output-pane">
+      <div class="output-head">
+        <span>Output</span>
+        <span id="status" class="status">Booting…</span>
+      </div>
+      <div id="output" class="output" aria-live="polite"></div>
+    </section>
+  </main>
+
+  <!-- GitHub modal -->
+  <div class="modal-backdrop" id="github-modal" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-label="GitHub sync">
+      <div class="modal-head">
+        <h2>GitHub sync</h2>
+        <button class="btn icon" data-close>✕</button>
+      </div>
+      <p class="muted small">
+        Save and load your programs straight from a GitHub repository. This runs in your browser
+        using a personal access token — nothing is sent anywhere except GitHub.
+      </p>
+      <label>Personal access token
+        <input id="gh-token" type="password" placeholder="github_pat_… (fine-grained, Contents: read & write)" spellcheck="false" />
+      </label>
+      <div class="row">
+        <label>Owner
+          <input id="gh-owner" placeholder="your-username" spellcheck="false" />
+        </label>
+        <label>Repository
+          <input id="gh-repo" placeholder="my-python" spellcheck="false" />
+        </label>
+      </div>
+      <div class="row">
+        <label>Branch
+          <input id="gh-branch" placeholder="main" value="main" spellcheck="false" />
+        </label>
+        <label>Folder (optional)
+          <input id="gh-path" placeholder="programs" spellcheck="false" />
+        </label>
+      </div>
+      <p class="muted small" id="gh-status"></p>
+      <div class="modal-actions">
+        <button class="btn" id="gh-save-settings">Save settings</button>
+        <button class="btn" id="gh-open">Open a file…</button>
+        <button class="btn btn-primary" id="gh-commit">Commit current file</button>
+      </div>
+      <div id="gh-files" class="gh-files" hidden></div>
+      <details class="muted small token-help">
+        <summary>How do I get a token?</summary>
+        <p>On GitHub: Settings → Developer settings → Fine-grained tokens → Generate new token.
+        Limit it to the one repository you want to use, and give it <em>Contents: Read and write</em>.
+        Paste it above. It is stored only in this browser's local storage.</p>
+      </details>
+    </div>
+  </div>
+
+  <!-- Settings modal -->
+  <div class="modal-backdrop" id="settings-modal" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-label="Settings">
+      <div class="modal-head">
+        <h2>Settings</h2>
+        <button class="btn icon" data-close>✕</button>
+      </div>
+      <label>Font size
+        <input id="set-fontsize" type="range" min="11" max="22" value="14" />
+      </label>
+      <label class="check">
+        <input id="set-wrap" type="checkbox" /> Wrap long lines in the editor
+      </label>
+      <label class="check">
+        <input id="set-autocomplete" type="checkbox" checked /> Live autocompletion
+      </label>
+      <hr />
+      <p class="muted small">
+        Runs entirely in your browser with Pyodide (CPython on WebAssembly). Most Python works,
+        including NumPy, pandas and matplotlib. What can't work in a browser: desktop GUI windows
+        (tkinter, pygame), real network sockets, <code>subprocess</code>, and multiprocessing.
+      </p>
+    </div>
+  </div>
+
+  <!-- Ace editor -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.6/ace.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.6/ext-language_tools.min.js"></script>
+  <!-- Pyodide -->
+  <script src="https://cdn.jsdelivr.net/pyodide/v0.27.2/full/pyodide.js"></script>
+
+  <script src="runner.js"></script>
+  <script src="github.js"></script>
+  <script src="examples.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

@@ -195,6 +195,7 @@ body {
   color: var(--text);
 }
 .output .err { color: var(--error); }
+.output .echo { color: var(--text); font-weight: 600; }
 .output .figure {
   display: block;
   max-width: 100%;
@@ -204,6 +205,35 @@ body {
   background: #fff;
 }
 .output .placeholder { color: var(--text-soft); }
+
+/* console input line — type directly, like a terminal */
+.console-input-row {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+}
+.console-input-row .prompt {
+  font-family: var(--mono);
+  font-weight: 700;
+  color: var(--text-soft);
+  user-select: none;
+}
+.console-input-row.awaiting .prompt { color: var(--accent); }
+.console-input {
+  flex: 1 1 auto;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 13.5px;
+  padding: 4px 0;
+  outline: none;
+}
+.console-input::placeholder { color: var(--text-soft); opacity: .7; }
 
 /* ---------- modals ---------- */
 .modal-backdrop {

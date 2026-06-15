@@ -2,6 +2,8 @@
 <html lang="en" data-theme="light">
 <head>
   <meta charset="UTF-8" />
+  <!-- Enables SharedArrayBuffer on GitHub Pages so input() can block for live console typing. -->
+  <script src="coi-serviceworker.js"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Katie · Python Playground</title>
   <meta name="description" content="A clean, ad-free Python playground that runs entirely in your browser." />
@@ -45,12 +47,18 @@
 
     <div class="splitter" id="splitter" role="separator" aria-orientation="vertical"></div>
 
-    <section class="pane output-pane">
+    <section class="pane output-pane" id="output-pane">
       <div class="output-head">
-        <span>Output</span>
+        <span>Console</span>
         <span id="status" class="status">Booting…</span>
       </div>
       <div id="output" class="output" aria-live="polite"></div>
+      <div class="console-input-row" id="console-row">
+        <span class="prompt" id="console-prompt">›</span>
+        <input id="console-input" class="console-input" type="text"
+               autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"
+               placeholder="type here and press Enter" aria-label="Console input" />
+      </div>
     </section>
   </main>
 
@@ -119,17 +127,16 @@
       <hr />
       <p class="muted small">
         Runs entirely in your browser with Pyodide (CPython on WebAssembly). Most Python works,
-        including NumPy, pandas and matplotlib. What can't work in a browser: desktop GUI windows
-        (tkinter, pygame), real network sockets, <code>subprocess</code>, and multiprocessing.
+        including NumPy, pandas and matplotlib, and <code>input()</code> lets you type right in the
+        console. What can't work in a browser: desktop GUI windows (tkinter, pygame), real network
+        sockets, <code>subprocess</code>, and multiprocessing.
       </p>
     </div>
   </div>
 
-  <!-- Ace editor -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.6/ace.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.6/ext-language_tools.min.js"></script>
-  <!-- Pyodide -->
-  <script src="https://cdn.jsdelivr.net/pyodide/v0.27.2/full/pyodide.js"></script>
+  <!-- Ace editor (Pyodide now runs inside worker.js) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.6/ace.min.js" crossorigin="anonymous"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.6/ext-language_tools.min.js" crossorigin="anonymous"></script>
 
   <script src="runner.js"></script>
   <script src="github.js"></script>

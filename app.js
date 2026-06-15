@@ -1,4 +1,4 @@
-/* app.js — wires the editor, runner, GitHub sync and UI together. */
+/* app.js — wires the editor, runner, console input, GitHub sync and UI together. */
 
 (() => {
   const $ = (sel) => document.querySelector(sel);
@@ -34,22 +34,25 @@
     applyTheme(next);
   });
 
-  // ---------- output ----------
+  // ---------- console output ----------
   const outEl = $("#output");
+  let hasOutput = false;
   function showPlaceholder() {
-    outEl.innerHTML = '<span class="placeholder">Output will appear here. Press Run to start.</span>';
+    outEl.innerHTML = '<span class="placeholder">Output appears here. Press Run, or type below and press Enter.</span>';
+    hasOutput = false;
   }
-  function clearOutput() { outEl.textContent = ""; }
+  function clearOutput() { outEl.textContent = ""; hasOutput = false; }
   function appendText(text, stream) {
-    if (outEl.querySelector(".placeholder")) outEl.textContent = "";
+    if (!hasOutput) { outEl.textContent = ""; hasOutput = true; }
     const span = document.createElement("span");
     if (stream === "err") span.className = "err";
+    if (stream === "in")  span.className = "echo";
     span.textContent = text;
     outEl.appendChild(span);
     outEl.scrollTop = outEl.scrollHeight;
   }
   function appendImage(b64) {
-    if (outEl.querySelector(".placeholder")) outEl.textContent = "";
+    if (!hasOutput) { outEl.textContent = ""; hasOutput = true; }
     const img = document.createElement("img");
     img.className = "figure";
     img.src = "data:image/png;base64," + b64;
@@ -65,28 +68,66 @@
     statusEl.className = "status" + (kind ? " " + kind : "");
   }
 
+  // ---------- console input ----------
+  const consoleInput = $("#console-input");
+  const consoleRow = $("#console-row");
+  let waitingForInput = false;
+
+  function submitConsole() {
+    const value = consoleInput.value;
+    consoleInput.value = "";
+    appendText(value + "\n", "in");          // echo the typed line into the console
+    const accepted = Runner.submitInput(value);
+    if (!accepted && !Runner.isInteractive()) {
+      // Inline fallback mode: typing here can't reach a blocked input().
+      appendText("(this build asks for input through a popup instead)\n", "err");
+    }
+    if (waitingForInput) { waitingForInput = false; consoleRow.classList.remove("awaiting"); }
+  }
+  consoleInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") { e.preventDefault(); submitConsole(); }
+  });
+  // Clicking anywhere in the console focuses the input, like a terminal.
+  $("#output-pane").addEventListener("click", (e) => {
+    if (window.getSelection().toString()) return; // don't steal a text selection
+    if (e.target.tagName !== "IMG") consoleInput.focus();
+  });
+
   // ---------- runner wiring ----------
   Runner.hooks.onText = appendText;
   Runner.hooks.onImage = appendImage;
   Runner.hooks.onStatus = setStatus;
+  Runner.hooks.onInputRequest = () => {
+    waitingForInput = true;
+    consoleRow.classList.add("awaiting");
+    setStatus("Waiting for input…", "busy");
+    consoleInput.focus();
+  };
+  Runner.hooks.onDone = () => {
+    $("#run").disabled = false;
+    waitingForInput = false;
+    consoleRow.classList.remove("awaiting");
+  };
   Runner.boot(); // start loading Python immediately
 
   const runBtn = $("#run");
   async function runCode() {
-    if (runBtn.disabled) return;
+    if (Runner.isRunning()) return;
     runBtn.disabled = true;
     clearOutput();
     try {
       await Runner.run(editor.getValue());
-    } finally {
+    } catch (e) {
+      appendText(String(e) + "\n", "err");
       runBtn.disabled = false;
-      editor.focus();
     }
   }
   runBtn.addEventListener("click", runCode);
-  $("#clear").addEventListener("click", () => { showPlaceholder(); setStatus(Runner.isReady() ? "Ready" : "Booting…", Runner.isReady() ? "ok" : ""); });
+  $("#clear").addEventListener("click", () => {
+    showPlaceholder();
+    setStatus(Runner.isReady() ? "Ready" : "Booting…", Runner.isReady() ? "ok" : "");
+  });
 
-  // Ctrl/Cmd + Enter runs
   editor.commands.addCommand({
     name: "run",
     bindKey: { win: "Ctrl-Enter", mac: "Cmd-Enter" },
@@ -96,10 +137,7 @@
   // ---------- examples ----------
   $("#examples").addEventListener("change", (e) => {
     const key = e.target.value;
-    if (EXAMPLES[key]) {
-      editor.setValue(EXAMPLES[key], -1);
-      editor.focus();
-    }
+    if (EXAMPLES[key]) { editor.setValue(EXAMPLES[key], -1); editor.focus(); }
     e.target.selectedIndex = 0;
   });
 

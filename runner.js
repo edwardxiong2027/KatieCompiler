@@ -1,25 +1,91 @@
-/* runner.js — runs Python in the browser via Pyodide (CPython on WebAssembly).
- * Exposes a small global `Runner` used by app.js. */
+/* runner.js — main-thread side of the Python runtime.
+ *
+ * Primary path: Pyodide runs in worker.js, and input() blocks on a
+ * SharedArrayBuffer that we feed from the live console. Needs cross-origin
+ * isolation (provided by coi-serviceworker.js).
+ *
+ * Fallback path: if isolation isn't available, Pyodide runs here on the main
+ * thread and input() uses a window.prompt dialog so the app still works. */
 
 const Runner = (() => {
-  let pyodide = null;
-  let ready = false;
-  let booting = null;
-
-  // Callbacks wired up by app.js
   const hooks = {
-    onText: (_text, _stream) => {},   // stream: "out" | "err"
-    onImage: (_b64png) => {},
-    onStatus: (_text, _kind) => {},   // kind: "" | "busy" | "ok" | "error"
+    onText: (_t, _stream) => {},   // stream: "out" | "err"
+    onImage: (_b64) => {},
+    onStatus: (_t, _kind) => {},   // kind: "" | "busy" | "ok" | "error"
+    onInputRequest: () => {},      // worker is blocked waiting for a console line
+    onDone: () => {},
   };
 
-  function status(text, kind = "") { hooks.onStatus(text, kind); }
+  let mode = null;                 // "worker" | "inline"
+  let ready = false;
+  let booting = null;
+  let running = false;
 
-  // Python helpers installed once at boot.
-  const BOOT_PY = `
+  // ---- worker path state ----
+  let worker = null;
+  let ctrl = null, data = null;
+  const encoder = new TextEncoder();
+  const inputQueue = [];           // type-ahead: lines entered before they're requested
+  let awaiting = false;            // worker is currently blocked on input
+
+  // ---- inline path state ----
+  let pyodide = null;
+
+  function isolated() {
+    return typeof SharedArrayBuffer !== "undefined" && self.crossOriginIsolated === true;
+  }
+
+  function boot() {
+    if (booting) return booting;
+    booting = isolated() ? bootWorker() : bootInline();
+    return booting;
+  }
+
+  // ---------------------------------------------------------------- worker path
+  function bootWorker() {
+    return new Promise((resolve, reject) => {
+      mode = "worker";
+      const controlSAB = new SharedArrayBuffer(8);   // Int32Array(2)
+      const dataSAB = new SharedArrayBuffer(1 << 16); // 64 KB line buffer
+      ctrl = new Int32Array(controlSAB);
+      data = new Uint8Array(dataSAB);
+
+      worker = new Worker("worker.js");
+      worker.onerror = (e) => { hooks.onStatus("Worker failed to start", "error"); reject(e); };
+      worker.onmessage = (e) => {
+        const m = e.data;
+        switch (m.type) {
+          case "status": hooks.onStatus(m.text, m.kind); break;
+          case "stdout": hooks.onText(m.text, "out"); break;
+          case "stderr": hooks.onText(m.text, "err"); break;
+          case "image":  hooks.onImage(m.b64); break;
+          case "input-request": serveOrWait(); break;
+          case "ready":  ready = true; resolve(); break;
+          case "done":   running = false; hooks.onDone(); break;
+        }
+      };
+      worker.postMessage({ type: "init", controlSAB, dataSAB });
+    });
+  }
+
+  function serveOrWait() {
+    if (inputQueue.length) writeLine(inputQueue.shift());
+    else { awaiting = true; hooks.onInputRequest(); }
+  }
+
+  function writeLine(line) {
+    const bytes = encoder.encode(line + "\n");
+    const n = Math.min(bytes.length, data.length);
+    data.set(bytes.subarray(0, n));
+    Atomics.store(ctrl, 1, n);
+    Atomics.store(ctrl, 0, 1);
+    Atomics.notify(ctrl, 0, 1);
+    awaiting = false;
+  }
+
+  // ---------------------------------------------------------------- inline path
+  const INLINE_BOOT = `
 import os, builtins, sys
-
-# Headless matplotlib so figures render to PNG instead of needing a window.
 os.environ['MPLBACKEND'] = 'AGG'
 
 def _katie_input(prompt=''):
@@ -27,13 +93,10 @@ def _katie_input(prompt=''):
     res = js.window.prompt(str(prompt))
     if res is None:
         raise KeyboardInterrupt('input was cancelled')
-    # Echo the prompt + answer so the console reads naturally.
     print(str(prompt) + str(res))
     return res
-
 builtins.input = _katie_input
 
-# Collect any open matplotlib figures as base64 PNGs, then clear them.
 def _katie_collect_figures():
     if 'matplotlib' not in sys.modules:
         return []
@@ -49,37 +112,32 @@ def _katie_collect_figures():
     return out
 `;
 
-  async function boot() {
-    if (booting) return booting;
-    booting = (async () => {
-      status("Loading Python runtime…", "busy");
-      pyodide = await loadPyodide();
-      pyodide.setStdout({ batched: (s) => hooks.onText(s, "out") });
-      pyodide.setStderr({ batched: (s) => hooks.onText(s, "err") });
-      await pyodide.runPythonAsync(BOOT_PY);
-      ready = true;
-      status("Ready", "ok");
-    })();
-    return booting;
+  function loadScript(src) {
+    return new Promise((res, rej) => {
+      const s = document.createElement("script");
+      s.src = src; s.crossOrigin = "anonymous";
+      s.onload = res; s.onerror = rej;
+      document.head.appendChild(s);
+    });
   }
 
-  async function run(code) {
-    if (!ready) {
-      status("Still loading Python…", "busy");
-      await boot();
-    }
-    status("Running…", "busy");
+  async function bootInline() {
+    mode = "inline";
+    hooks.onStatus("Loading Python runtime…", "busy");
+    await loadScript("https://cdn.jsdelivr.net/pyodide/v0.27.2/full/pyodide.js");
+    pyodide = await loadPyodide();
+    pyodide.setStdout({ batched: (s) => hooks.onText(s, "out") });
+    pyodide.setStderr({ batched: (s) => hooks.onText(s, "err") });
+    await pyodide.runPythonAsync(INLINE_BOOT);
+    ready = true;
+    hooks.onStatus("Ready", "ok");
+  }
 
-    // Pull in any packages the program imports (numpy, pandas, matplotlib, …).
-    try {
-      await pyodide.loadPackagesFromImports(code);
-    } catch (_) {
-      // A missing package will surface as a normal ImportError below.
-    }
-
-    // Fresh namespace each run so programs don't leak state into each other.
-    const ns = pyodide.toPy({ __name__: "__main__" });
+  async function runInline(code) {
+    hooks.onStatus("Running…", "busy");
+    try { await pyodide.loadPackagesFromImports(code); } catch (_) {}
     let failed = false;
+    const ns = pyodide.toPy({ __name__: "__main__" });
     try {
       await pyodide.runPythonAsync(code, { globals: ns });
     } catch (err) {
@@ -88,25 +146,45 @@ def _katie_collect_figures():
     } finally {
       ns.destroy();
     }
-
-    // Render any plots the program produced.
     try {
       const figsProxy = await pyodide.runPythonAsync("_katie_collect_figures()");
-      const figs = figsProxy.toJs();
-      figsProxy.destroy();
+      const figs = figsProxy.toJs(); figsProxy.destroy();
       for (const b64 of figs) hooks.onImage(b64);
-    } catch (_) { /* no figures */ }
-
-    status(failed ? "Finished with an error" : "Done", failed ? "error" : "ok");
+    } catch (_) {}
+    hooks.onStatus(failed ? "Finished with an error" : "Done", failed ? "error" : "ok");
+    running = false;
+    hooks.onDone();
   }
 
-  // Pyodide error messages include a long JS stack; keep the Python traceback.
   function formatError(err) {
     const msg = (err && err.message) ? err.message : String(err);
-    const marker = "Traceback (most recent call last):";
-    const i = msg.indexOf(marker);
+    const i = msg.indexOf("Traceback (most recent call last):");
     return (i >= 0 ? msg.slice(i) : msg).trimEnd() + "\n";
   }
 
-  return { boot, run, hooks, isReady: () => ready };
+  // ---------------------------------------------------------------- public API
+  async function run(code) {
+    if (running) return;
+    if (!ready) await boot();
+    running = true;
+    if (mode === "worker") worker.postMessage({ type: "run", code });
+    else runInline(code);
+  }
+
+  // A line typed in the console. In worker mode it feeds Python's stdin;
+  // type-ahead is buffered until input() asks for it.
+  function submitInput(line) {
+    if (mode !== "worker") return false; // inline mode uses window.prompt instead
+    if (awaiting) writeLine(line);
+    else inputQueue.push(line);
+    return true;
+  }
+
+  return {
+    boot, run, submitInput, hooks,
+    isReady: () => ready,
+    isRunning: () => running,
+    isInteractive: () => mode === "worker",
+    isAwaitingInput: () => awaiting,
+  };
 })();

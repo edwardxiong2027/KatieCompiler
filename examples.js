@@ -61,8 +61,10 @@ plt.ylabel("count")
 plt.show()
 `,
 
-  input: `# input() pops up a prompt in the browser
+  input: `# input() reads what you type in the console below.
+# Run this, then type your answer on the console line and press Enter.
+name = input("What's your name? ")
 age = input("How old are you? ")
-print("Next year you'll be", int(age) + 1)
+print(f"Hi {name}! Next year you'll be {int(age) + 1}.")
 `,
 };

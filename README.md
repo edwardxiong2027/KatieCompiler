@@ -8,6 +8,7 @@ Python runs through [Pyodide](https://pyodide.org), which is real CPython compil
 
 - A modern, minimalist editor with Python syntax highlighting and autocompletion
 - Runs in the browser — print output, errors, and matplotlib graphs all appear inline
+- `turtle` graphics work too: the drawing is rendered to a crisp SVG image in the Output panel
 - An interactive console: `input()` lets you type directly on the console line, like a real terminal
 - Light and dark themes, adjustable font size, a draggable split between code and output
 - Your code is auto-saved in the browser between visits
@@ -18,7 +19,9 @@ Python runs through [Pyodide](https://pyodide.org), which is real CPython compil
 
 Most Python works: the language itself, the standard library, file I/O on a virtual in-memory filesystem, NumPy, pandas, matplotlib, scikit-learn, and many other pure-Python and scientific packages.
 
-A few things can't work inside a browser sandbox, no matter the host: desktop GUI windows (tkinter, pygame, turtle graphics in a window), real network sockets, `subprocess`/shelling out, and multiprocessing. These need the underlying operating system, which the browser deliberately walls off.
+**Turtle graphics** are supported through a drop-in `turtle` module (`pyturtle.js`) that records every pen stroke and renders the finished drawing to SVG — the standard tkinter `turtle` can't run in a browser, so this re-implements the common classroom subset (movement, headings, pen/fill colours, `circle`, `dot`, `stamp`, `write`, and the `Screen` helpers). It draws the final picture rather than animating live, and GUI/event hooks like `onkey` and `mainloop` are accepted as no-ops. Other graphing libraries that render through matplotlib (e.g. `networkx`) work as well.
+
+A few things can't work inside a browser sandbox, no matter the host: live desktop GUI windows (tkinter, pygame), real network sockets, `subprocess`/shelling out, and multiprocessing. These need the underlying operating system, which the browser deliberately walls off.
 
 ## Running it locally
 
@@ -62,7 +65,8 @@ So `input()` can pause the program and wait for you to type, Python runs in a We
 ```
 index.html            structure and CDN includes
 styles.css            all styling (light/dark via CSS variables)
-worker.js             Pyodide runs here: execute code, stdout/stderr, plots, blocking stdin
+worker.js             Pyodide runs here: execute code, stdout/stderr, plots, turtle SVG, blocking stdin
+pyturtle.js           pure-Python `turtle` module that renders drawings to SVG (shared by worker + fallback)
 runner.js             main-thread side: manages the worker + shared-memory input (prompt fallback)
 coi-serviceworker.js  enables cross-origin isolation so SharedArrayBuffer works on Pages
 github.js             read & write files via the GitHub REST API

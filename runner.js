@@ -11,6 +11,7 @@ const Runner = (() => {
   const hooks = {
     onText: (_t, _stream) => {},   // stream: "out" | "err"
     onImage: (_b64) => {},
+    onSvg: (_svg) => {},           // turtle drawing rendered to SVG markup
     onStatus: (_t, _kind) => {},   // kind: "" | "busy" | "ok" | "error"
     onInputRequest: () => {},      // worker is blocked waiting for a console line
     onDone: () => {},
@@ -59,6 +60,7 @@ const Runner = (() => {
           case "stdout": hooks.onText(m.text, "out"); break;
           case "stderr": hooks.onText(m.text, "err"); break;
           case "image":  hooks.onImage(m.b64); break;
+          case "svg":    hooks.onSvg(m.svg); break;
           case "input-request": serveOrWait(); break;
           case "ready":  ready = true; resolve(); break;
           case "done":   running = false; hooks.onDone(); break;
@@ -110,6 +112,17 @@ def _katie_collect_figures():
         out.append(base64.b64encode(buf.read()).decode('ascii'))
     plt.close('all')
     return out
+
+def _katie_collect_turtle_svg():
+    mod = sys.modules.get('turtle')
+    if mod is None or not hasattr(mod, '_katie_collect_turtle'):
+        return None
+    return mod._katie_collect_turtle()
+
+def _katie_reset_turtle():
+    mod = sys.modules.get('turtle')
+    if mod is not None and hasattr(mod, '_katie_reset_turtle'):
+        mod._katie_reset_turtle()
 `;
 
   function loadScript(src) {
@@ -130,12 +143,14 @@ def _katie_collect_figures():
     pyodide.setStdout({ write: (b) => { hooks.onText(dec.decode(b), "out"); return b.length; } });
     pyodide.setStderr({ write: (b) => { hooks.onText(dec.decode(b), "err"); return b.length; } });
     await pyodide.runPythonAsync(INLINE_BOOT);
+    await pyodide.runPythonAsync(self.KATIE_PY_TURTLE);   // register the `turtle` module
     ready = true;
     hooks.onStatus("Ready", "ok");
   }
 
   async function runInline(code) {
     hooks.onStatus("Running…", "busy");
+    try { await pyodide.runPythonAsync("_katie_reset_turtle()"); } catch (_) {}
     try { await pyodide.loadPackagesFromImports(code); } catch (_) {}
     let failed = false;
     const ns = pyodide.toPy({ __name__: "__main__" });
@@ -151,6 +166,10 @@ def _katie_collect_figures():
       const figsProxy = await pyodide.runPythonAsync("_katie_collect_figures()");
       const figs = figsProxy.toJs(); figsProxy.destroy();
       for (const b64 of figs) hooks.onImage(b64);
+    } catch (_) {}
+    try {
+      const svg = await pyodide.runPythonAsync("_katie_collect_turtle_svg()");
+      if (svg) hooks.onSvg(svg);
     } catch (_) {}
     hooks.onStatus(failed ? "Finished with an error" : "Done", failed ? "error" : "ok");
     running = false;

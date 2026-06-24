@@ -30,6 +30,20 @@ def _katie_collect_figures():
         out.append(base64.b64encode(buf.read()).decode('ascii'))
     plt.close('all')
     return out
+
+# Drawing collected by our browser turtle module (see pyturtle.js), rendered to SVG.
+def _katie_collect_turtle_svg():
+    import sys
+    mod = sys.modules.get('turtle')
+    if mod is None or not hasattr(mod, '_katie_collect_turtle'):
+        return None
+    return mod._katie_collect_turtle()
+
+def _katie_reset_turtle():
+    import sys
+    mod = sys.modules.get('turtle')
+    if mod is not None and hasattr(mod, '_katie_reset_turtle'):
+        mod._katie_reset_turtle()
 `;
 
 function post(type, payload = {}) { self.postMessage({ type, ...payload }); }
@@ -47,6 +61,7 @@ function blockingStdin() {
 
 async function boot() {
   importScripts("https://cdn.jsdelivr.net/pyodide/v0.27.2/full/pyodide.js");
+  importScripts("pyturtle.js");   // defines self.KATIE_PY_TURTLE
   post("status", { text: "Loading Python runtime…", kind: "busy" });
   pyodide = await loadPyodide();
   // Unbuffered write handlers (not "batched") so a prompt with no trailing
@@ -55,12 +70,14 @@ async function boot() {
   pyodide.setStderr({ write: (buf) => { post("stderr", { text: decoder.decode(buf) }); return buf.length; } });
   pyodide.setStdin({ stdin: blockingStdin, isatty: true });
   await pyodide.runPythonAsync(BOOT_PY);
+  await pyodide.runPythonAsync(self.KATIE_PY_TURTLE);   // register the `turtle` module
   post("status", { text: "Ready", kind: "ok" });
   post("ready");
 }
 
 async function run(code) {
   post("status", { text: "Running…", kind: "busy" });
+  try { await pyodide.runPythonAsync("_katie_reset_turtle()"); } catch (_) {}
   try {
     await pyodide.loadPackagesFromImports(code);
   } catch (_) { /* a missing package surfaces as a normal ImportError below */ }
@@ -82,6 +99,11 @@ async function run(code) {
     figsProxy.destroy();
     for (const b64 of figs) post("image", { b64 });
   } catch (_) { /* no figures */ }
+
+  try {
+    const svg = await pyodide.runPythonAsync("_katie_collect_turtle_svg()");
+    if (svg) post("svg", { svg });
+  } catch (_) { /* no turtle drawing */ }
 
   post("status", { text: failed ? "Finished with an error" : "Done", kind: failed ? "error" : "ok" });
   post("done");

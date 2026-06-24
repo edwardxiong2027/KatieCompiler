@@ -27,6 +27,8 @@
         <option value="numpy">NumPy array math</option>
         <option value="plot">Plot a sine wave</option>
         <option value="bars">Bar chart</option>
+        <option value="turtle">Turtle: colour spiral</option>
+        <option value="turtleStar">Turtle: star</option>
         <option value="input">Ask for input</option>
       </select>
     </div>
@@ -128,8 +130,9 @@
       <p class="muted small">
         Runs entirely in your browser with Pyodide (CPython on WebAssembly). Most Python works,
         including NumPy, pandas and matplotlib, and <code>input()</code> lets you type right in the
-        console. What can't work in a browser: desktop GUI windows (tkinter, pygame), real network
-        sockets, <code>subprocess</code>, and multiprocessing.
+        console. <code>turtle</code> graphics are supported too — the finished drawing renders as
+        an image in the Output panel. What can't work in a browser: live desktop GUI windows
+        (tkinter, pygame), real network sockets, <code>subprocess</code>, and multiprocessing.
       </p>
     </div>
   </div>
@@ -138,6 +141,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.6/ace.min.js" crossorigin="anonymous"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.6/ext-language_tools.min.js" crossorigin="anonymous"></script>
 
+  <script src="pyturtle.js"></script>
   <script src="runner.js"></script>
   <script src="github.js"></script>
   <script src="examples.js"></script>

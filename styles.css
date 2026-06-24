@@ -204,6 +204,20 @@ body {
   border-radius: 8px;
   background: #fff;
 }
+.output .svg-figure {
+  display: block;
+  margin: 10px 0;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+  overflow: auto;
+}
+.output .svg-figure svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
 .output .placeholder { color: var(--text-soft); }
 
 /* console input line — type directly, like a terminal */

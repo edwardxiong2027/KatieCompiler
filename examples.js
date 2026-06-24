@@ -61,6 +61,42 @@ plt.ylabel("count")
 plt.show()
 `,
 
+  turtle: `# Turtle graphics! The drawing appears in the Output panel.
+import turtle
+
+t = turtle.Turtle()
+t.speed(0)
+
+colors = ["red", "orange", "gold", "green", "blue", "purple"]
+for i in range(120):
+    t.pencolor(colors[i % len(colors)])
+    t.width(2)
+    t.forward(i * 2)
+    t.left(59)
+
+t.hideturtle()
+turtle.done()
+`,
+
+  turtleStar: `# A filled five-pointed star
+import turtle
+
+t = turtle.Turtle()
+t.speed(0)
+t.pensize(3)
+t.pencolor("navy")
+t.fillcolor("gold")
+
+t.begin_fill()
+for _ in range(5):
+    t.forward(200)
+    t.right(144)
+t.end_fill()
+
+t.hideturtle()
+turtle.done()
+`,
+
   input: `# input() reads what you type in the console below.
 # Run this, then type your answer on the console line and press Enter.
 name = input("What's your name? ")
